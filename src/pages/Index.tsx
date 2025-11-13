@@ -7,8 +7,10 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import Icon from '@/components/ui/icon';
 import MapView from '@/components/MapView';
 import RunDetailModal from '@/components/RunDetailModal';
+import TreadmillView from '@/components/TreadmillView';
 
-type View = 'map' | 'run' | 'profile' | 'leaderboard';
+type View = 'map' | 'run' | 'profile' | 'leaderboard' | 'treadmill';
+type RunMode = 'outdoor' | 'treadmill';
 
 interface Territory {
   id: number;
@@ -82,6 +84,8 @@ export default function Index() {
   const [currentTerritory, setCurrentTerritory] = useState<string>('');
   const [selectedRun, setSelectedRun] = useState<RunHistory | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [runMode, setRunMode] = useState<RunMode>('outdoor');
+  const [treadmillSpeed, setTreadmillSpeed] = useState<number>(8.0);
   const watchIdRef = useRef<number | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const startTimeRef = useRef<number>(0);
@@ -125,7 +129,31 @@ export default function Index() {
     return R * c;
   };
 
+  const startTreadmillRun = () => {
+    setRunMode('treadmill');
+    setGpsError(null);
+    setPositions([]);
+    setCurrentTerritory('Беговая дорожка');
+    setRunStats({ distance: 0, speed: treadmillSpeed, time: 0, isRunning: true });
+    startTimeRef.current = Date.now();
+    setCurrentView('treadmill');
+
+    timerRef.current = setInterval(() => {
+      const elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
+      const distanceTraveled = (treadmillSpeed * elapsed) / 3600;
+      
+      setRunStats((prev) => ({ 
+        ...prev, 
+        time: elapsed,
+        distance: distanceTraveled,
+        speed: treadmillSpeed
+      }));
+    }, 1000);
+  };
+
   const startRun = (territory?: string) => {
+    setRunMode('outdoor');
+    
     if (!navigator.geolocation) {
       setGpsError('GPS не поддерживается вашим устройством');
       return;
@@ -225,6 +253,13 @@ export default function Index() {
     setGpsEnabled(false);
   };
 
+  const updateTreadmillSpeed = (newSpeed: number) => {
+    setTreadmillSpeed(newSpeed);
+    if (runStats.isRunning && runMode === 'treadmill') {
+      setRunStats((prev) => ({ ...prev, speed: newSpeed }));
+    }
+  };
+
   useEffect(() => {
     return () => {
       if (watchIdRef.current !== null) {
@@ -249,6 +284,24 @@ export default function Index() {
           </Badge>
         </div>
       </div>
+
+      <Card className="p-4 bg-gradient-to-r from-primary/10 to-accent/10 border-primary/20">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-full bg-primary flex items-center justify-center">
+              <Icon name="Dumbbell" size={24} className="text-white" />
+            </div>
+            <div>
+              <h3 className="font-bold">Беговая дорожка</h3>
+              <p className="text-sm text-muted-foreground">Тренировка в зале</p>
+            </div>
+          </div>
+          <Button onClick={startTreadmillRun} className="bg-primary hover:bg-primary/90">
+            <Icon name="Play" size={16} className="mr-2" />
+            Начать
+          </Button>
+        </div>
+      </Card>
 
       <div>
         <h2 className="text-xl font-bold mb-3 flex items-center gap-2">
@@ -613,6 +666,16 @@ export default function Index() {
         <main className="p-4">
           {currentView === 'map' && renderMapView()}
           {currentView === 'run' && renderRunView()}
+          {currentView === 'treadmill' && (
+            <TreadmillView
+              distance={runStats.distance}
+              speed={runStats.speed}
+              time={runStats.time}
+              isRunning={runStats.isRunning}
+              onSpeedChange={updateTreadmillSpeed}
+              onStop={stopRun}
+            />
+          )}
           {currentView === 'profile' && renderProfileView()}
           {currentView === 'leaderboard' && renderLeaderboardView()}
         </main>
