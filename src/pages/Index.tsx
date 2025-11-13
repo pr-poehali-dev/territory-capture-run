@@ -5,6 +5,8 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import Icon from '@/components/ui/icon';
+import MapView from '@/components/MapView';
+import RunDetailModal from '@/components/RunDetailModal';
 
 type View = 'map' | 'run' | 'profile' | 'leaderboard';
 
@@ -78,6 +80,8 @@ export default function Index() {
   const [positions, setPositions] = useState<GPSPosition[]>([]);
   const [runHistory, setRunHistory] = useState<RunHistory[]>([]);
   const [currentTerritory, setCurrentTerritory] = useState<string>('');
+  const [selectedRun, setSelectedRun] = useState<RunHistory | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const watchIdRef = useRef<number | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const startTimeRef = useRef<number>(0);
@@ -303,21 +307,25 @@ export default function Index() {
 
   const renderRunView = () => (
     <div className="space-y-6 animate-fade-in">
-      <div className="relative h-[200px] bg-gradient-to-br from-primary/20 to-secondary/20 rounded-xl overflow-hidden flex items-center justify-center">
-        <div className="relative">
-          <div className="w-32 h-32 rounded-full bg-primary/20 flex items-center justify-center">
-            <div className="w-24 h-24 rounded-full bg-primary flex items-center justify-center relative">
-              {runStats.isRunning && (
-                <>
-                  <div className="absolute inset-0 rounded-full bg-primary animate-pulse-ring"></div>
-                  <div className="absolute inset-0 rounded-full bg-primary animate-pulse-ring animation-delay-1000"></div>
-                </>
-              )}
-              <Icon name="Activity" size={40} className="text-white z-10" />
+      {positions.length > 0 ? (
+        <MapView positions={positions} isRunning={runStats.isRunning} />
+      ) : (
+        <div className="relative h-[200px] bg-gradient-to-br from-primary/20 to-secondary/20 rounded-xl overflow-hidden flex items-center justify-center">
+          <div className="relative">
+            <div className="w-32 h-32 rounded-full bg-primary/20 flex items-center justify-center">
+              <div className="w-24 h-24 rounded-full bg-primary flex items-center justify-center relative">
+                {runStats.isRunning && (
+                  <>
+                    <div className="absolute inset-0 rounded-full bg-primary animate-pulse-ring"></div>
+                    <div className="absolute inset-0 rounded-full bg-primary animate-pulse-ring animation-delay-1000"></div>
+                  </>
+                )}
+                <Icon name="Activity" size={40} className="text-white z-10" />
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
 
       {gpsError && (
         <Card className="p-4 bg-destructive/10 border-destructive">
@@ -488,7 +496,14 @@ export default function Index() {
               const timeLabel = `${Math.floor(run.time / 60)}:${(run.time % 60).toString().padStart(2, '0')}`;
 
               return (
-                <Card key={run.id} className="p-3">
+                <Card 
+                  key={run.id} 
+                  className="p-3 cursor-pointer hover:shadow-md transition-shadow"
+                  onClick={() => {
+                    setSelectedRun(run);
+                    setIsModalOpen(true);
+                  }}
+                >
                   <div className="flex items-center justify-between">
                     <div className="flex-1">
                       <div className="font-semibold text-sm">{run.territory}</div>
@@ -646,6 +661,12 @@ export default function Index() {
             </Button>
           </div>
         </nav>
+
+        <RunDetailModal 
+          run={selectedRun} 
+          open={isModalOpen} 
+          onClose={() => setIsModalOpen(false)} 
+        />
       </div>
     </div>
   );
