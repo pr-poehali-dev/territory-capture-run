@@ -39,6 +39,16 @@ interface GPSPosition {
   timestamp: number;
 }
 
+interface RunHistory {
+  id: string;
+  date: string;
+  territory: string;
+  distance: number;
+  time: number;
+  avgSpeed: number;
+  positions: GPSPosition[];
+}
+
 const mockTerritories: Territory[] = [
   { id: 1, name: 'Парк Горького', area: 2.5, status: 'available' },
   { id: 2, name: 'Центральный район', area: 5.8, status: 'captured', owner: 'Ты' },
@@ -66,9 +76,38 @@ export default function Index() {
   const [gpsEnabled, setGpsEnabled] = useState<boolean>(false);
   const [gpsError, setGpsError] = useState<string | null>(null);
   const [positions, setPositions] = useState<GPSPosition[]>([]);
+  const [runHistory, setRunHistory] = useState<RunHistory[]>([]);
+  const [currentTerritory, setCurrentTerritory] = useState<string>('');
   const watchIdRef = useRef<number | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const startTimeRef = useRef<number>(0);
+
+  useEffect(() => {
+    const savedHistory = localStorage.getItem('runHistory');
+    if (savedHistory) {
+      try {
+        setRunHistory(JSON.parse(savedHistory));
+      } catch (e) {
+        console.error('Failed to load run history', e);
+      }
+    }
+  }, []);
+
+  const saveRunToHistory = (territory: string) => {
+    const newRun: RunHistory = {
+      id: Date.now().toString(),
+      date: new Date().toISOString(),
+      territory,
+      distance: runStats.distance,
+      time: runStats.time,
+      avgSpeed: runStats.distance > 0 ? (runStats.distance / (runStats.time / 3600)) : 0,
+      positions: positions,
+    };
+
+    const updatedHistory = [newRun, ...runHistory].slice(0, 50);
+    setRunHistory(updatedHistory);
+    localStorage.setItem('runHistory', JSON.stringify(updatedHistory));
+  };
 
   const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
     const R = 6371;
@@ -82,7 +121,7 @@ export default function Index() {
     return R * c;
   };
 
-  const startRun = () => {
+  const startRun = (territory?: string) => {
     if (!navigator.geolocation) {
       setGpsError('GPS не поддерживается вашим устройством');
       return;
@@ -90,6 +129,7 @@ export default function Index() {
 
     setGpsError(null);
     setPositions([]);
+    setCurrentTerritory(territory || 'Неизвестная территория');
     setRunStats({ distance: 0, speed: 0, time: 0, isRunning: true });
     startTimeRef.current = Date.now();
     setCurrentView('run');
@@ -172,6 +212,11 @@ export default function Index() {
       clearInterval(timerRef.current);
       timerRef.current = null;
     }
+    
+    if (runStats.distance > 0) {
+      saveRunToHistory(currentTerritory);
+    }
+    
     setRunStats((prev) => ({ ...prev, isRunning: false }));
     setGpsEnabled(false);
   };
@@ -243,7 +288,7 @@ export default function Index() {
                   </div>
                 </div>
                 {territory.status === 'available' && (
-                  <Button onClick={startRun} className="bg-primary hover:bg-primary/90">
+                  <Button onClick={() => startRun(territory.name)} className="bg-primary hover:bg-primary/90">
                     <Icon name="Play" size={16} className="mr-2" />
                     Начать
                   </Button>
@@ -371,12 +416,14 @@ export default function Index() {
 
         <div className="grid grid-cols-2 gap-4">
           <div className="text-center p-4 bg-muted rounded-lg">
-            <div className="text-3xl font-bold text-primary">12.8</div>
-            <div className="text-sm text-muted-foreground">км² захвачено</div>
+            <div className="text-3xl font-bold text-primary">
+              {runHistory.reduce((sum, run) => sum + run.distance, 0).toFixed(1)}
+            </div>
+            <div className="text-sm text-muted-foreground">км пройдено</div>
           </div>
           <div className="text-center p-4 bg-muted rounded-lg">
-            <div className="text-3xl font-bold text-secondary">4</div>
-            <div className="text-sm text-muted-foreground">территории</div>
+            <div className="text-3xl font-bold text-secondary">{runHistory.length}</div>
+            <div className="text-sm text-muted-foreground">пробежек</div>
           </div>
         </div>
       </Card>
@@ -420,24 +467,42 @@ export default function Index() {
           История пробежек
         </h3>
         <div className="space-y-2">
-          {[
-            { date: 'Сегодня', territory: 'Центральный район', distance: 5.8, time: '42:15' },
-            { date: 'Вчера', territory: 'Набережная', distance: 3.2, time: '24:30' },
-            { date: '2 дня назад', territory: 'Парк Горького', distance: 2.5, time: '18:45' },
-          ].map((run, idx) => (
-            <Card key={idx} className="p-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="font-semibold text-sm">{run.territory}</div>
-                  <div className="text-xs text-muted-foreground">{run.date}</div>
-                </div>
-                <div className="text-right">
-                  <div className="text-sm font-semibold text-secondary">{run.distance} км</div>
-                  <div className="text-xs text-muted-foreground">{run.time}</div>
-                </div>
-              </div>
+          {runHistory.length === 0 ? (
+            <Card className="p-4 text-center">
+              <Icon name="Calendar" size={32} className="mx-auto mb-2 text-muted-foreground opacity-50" />
+              <p className="text-sm text-muted-foreground">Пока нет пробежек</p>
+              <p className="text-xs text-muted-foreground mt-1">Начните бегать, чтобы увидеть историю</p>
             </Card>
-          ))}
+          ) : (
+            runHistory.slice(0, 10).map((run) => {
+              const runDate = new Date(run.date);
+              const now = new Date();
+              const diffDays = Math.floor((now.getTime() - runDate.getTime()) / (1000 * 60 * 60 * 24));
+              
+              let dateLabel = '';
+              if (diffDays === 0) dateLabel = 'Сегодня';
+              else if (diffDays === 1) dateLabel = 'Вчера';
+              else if (diffDays < 7) dateLabel = `${diffDays} дня назад`;
+              else dateLabel = runDate.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
+
+              const timeLabel = `${Math.floor(run.time / 60)}:${(run.time % 60).toString().padStart(2, '0')}`;
+
+              return (
+                <Card key={run.id} className="p-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <div className="font-semibold text-sm">{run.territory}</div>
+                      <div className="text-xs text-muted-foreground">{dateLabel}</div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-sm font-semibold text-secondary">{run.distance.toFixed(2)} км</div>
+                      <div className="text-xs text-muted-foreground">{timeLabel}</div>
+                    </div>
+                  </div>
+                </Card>
+              );
+            })
+          )}
         </div>
       </div>
     </div>
