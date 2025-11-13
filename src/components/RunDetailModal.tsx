@@ -2,6 +2,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button';
 import Icon from '@/components/ui/icon';
 import MapView from './MapView';
+import RunStatsCard from './RunStatsCard';
 
 interface GPSPosition {
   latitude: number;
@@ -18,6 +19,17 @@ interface RunHistory {
   time: number;
   avgSpeed: number;
   positions: GPSPosition[];
+  avgPace: number;
+  maxSpeed: number;
+  calories: number;
+  avgHeartRate?: number;
+  heartRateZones?: {
+    zone1: number;
+    zone2: number;
+    zone3: number;
+    zone4: number;
+    zone5: number;
+  };
 }
 
 interface RunDetailModalProps {
@@ -74,6 +86,14 @@ export default function RunDetailModal({ run, open, onClose }: RunDetailModalPro
               <div className="text-xs text-muted-foreground">км/ч</div>
             </div>
           </div>
+
+          <RunStatsCard
+            avgPace={run.avgPace}
+            avgHeartRate={run.avgHeartRate}
+            maxSpeed={run.maxSpeed}
+            calories={run.calories}
+            heartRateZones={run.heartRateZones}
+          />
 
           <div className="space-y-2 text-sm">
             <div className="flex items-center justify-between p-2 bg-muted/50 rounded">

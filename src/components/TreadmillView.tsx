@@ -8,6 +8,9 @@ interface TreadmillViewProps {
   speed: number;
   time: number;
   isRunning: boolean;
+  heartRate?: number;
+  avgPace?: number;
+  calories?: number;
   onSpeedChange: (speed: number) => void;
   onStop: () => void;
 }
@@ -17,6 +20,9 @@ export default function TreadmillView({
   speed, 
   time, 
   isRunning,
+  heartRate,
+  avgPace,
+  calories,
   onSpeedChange,
   onStop 
 }: TreadmillViewProps) {
@@ -108,25 +114,51 @@ export default function TreadmillView({
         </Card>
       </div>
 
+      {heartRate && heartRate > 0 && (
+        <Card className="p-4 bg-gradient-to-r from-red-50 to-pink-50 border-red-200">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-full bg-red-500 flex items-center justify-center animate-pulse">
+                <Icon name="Heart" size={24} className="text-white" />
+              </div>
+              <div>
+                <div className="text-3xl font-bold text-red-600">{heartRate}</div>
+                <div className="text-xs text-muted-foreground">уд/мин</div>
+              </div>
+            </div>
+            <div className="text-right">
+              <Badge className="bg-red-500">
+                {heartRate < 114 ? 'Зона 1' : heartRate < 133 ? 'Зона 2' : heartRate < 152 ? 'Зона 3' : heartRate < 171 ? 'Зона 4' : 'Зона 5'}
+              </Badge>
+              <div className="text-xs text-muted-foreground mt-1">
+                {heartRate < 114 ? 'Разминка' : heartRate < 133 ? 'Легкая' : heartRate < 152 ? 'Аэробная' : heartRate < 171 ? 'Пороговая' : 'Максимальная'}
+              </div>
+            </div>
+          </div>
+        </Card>
+      )}
+
       <Card className="p-4">
         <div className="space-y-3">
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-muted-foreground flex items-center gap-2">
-              <Icon name="Flame" size={16} />
-              Калории (примерно)
-            </span>
-            <span className="font-semibold">{Math.round(distance * 65)} ккал</span>
-          </div>
+          {calories !== undefined && calories > 0 && (
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground flex items-center gap-2">
+                <Icon name="Flame" size={16} />
+                Калории
+              </span>
+              <span className="font-semibold">{calories} ккал</span>
+            </div>
+          )}
           
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-muted-foreground flex items-center gap-2">
-              <Icon name="Activity" size={16} />
-              Средний темп
-            </span>
-            <span className="font-semibold">
-              {speed > 0 ? (60 / speed).toFixed(1) : '0.0'} мин/км
-            </span>
-          </div>
+          {avgPace !== undefined && avgPace > 0 && (
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground flex items-center gap-2">
+                <Icon name="Activity" size={16} />
+                Средний темп
+              </span>
+              <span className="font-semibold">{avgPace.toFixed(1)} мин/км</span>
+            </div>
+          )}
 
           <div className="flex items-center justify-between text-sm">
             <span className="text-muted-foreground flex items-center gap-2">

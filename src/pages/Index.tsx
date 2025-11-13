@@ -33,6 +33,9 @@ interface RunStats {
   speed: number;
   time: number;
   isRunning: boolean;
+  heartRate?: number;
+  avgPace?: number;
+  calories?: number;
 }
 
 interface GPSPosition {
@@ -50,6 +53,17 @@ interface RunHistory {
   time: number;
   avgSpeed: number;
   positions: GPSPosition[];
+  avgPace: number;
+  maxSpeed: number;
+  calories: number;
+  avgHeartRate?: number;
+  heartRateZones?: {
+    zone1: number;
+    zone2: number;
+    zone3: number;
+    zone4: number;
+    zone5: number;
+  };
 }
 
 const mockTerritories: Territory[] = [
@@ -85,6 +99,8 @@ export default function Index() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [runMode, setRunMode] = useState<RunMode>('outdoor');
   const [treadmillSpeed, setTreadmillSpeed] = useState<number>(8.0);
+  const [heartRate, setHeartRate] = useState<number>(0);
+  const [heartRateHistory, setHeartRateHistory] = useState<number[]>([]);
   const watchIdRef = useRef<number | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const startTimeRef = useRef<number>(0);
@@ -100,14 +116,57 @@ export default function Index() {
     }
   }, []);
 
+  const calculateHeartRateZones = (hrHistory: number[]) => {
+    if (hrHistory.length === 0) return undefined;
+    
+    const zones = { zone1: 0, zone2: 0, zone3: 0, zone4: 0, zone5: 0 };
+    hrHistory.forEach(hr => {
+      if (hr < 114) zones.zone1++;
+      else if (hr < 133) zones.zone2++;
+      else if (hr < 152) zones.zone3++;
+      else if (hr < 171) zones.zone4++;
+      else zones.zone5++;
+    });
+    
+    const total = hrHistory.length;
+    return {
+      zone1: Math.round((zones.zone1 / total) * 100),
+      zone2: Math.round((zones.zone2 / total) * 100),
+      zone3: Math.round((zones.zone3 / total) * 100),
+      zone4: Math.round((zones.zone4 / total) * 100),
+      zone5: Math.round((zones.zone5 / total) * 100),
+    };
+  };
+
   const saveRunToHistory = (territory: string) => {
+    const avgSpeed = runStats.distance > 0 ? (runStats.distance / (runStats.time / 3600)) : 0;
+    const avgPace = avgSpeed > 0 ? 60 / avgSpeed : 0;
+    const maxSpeed = positions.length > 1 ? Math.max(...positions.map((_, idx) => {
+      if (idx === 0) return 0;
+      const prev = positions[idx - 1];
+      const curr = positions[idx];
+      const dist = calculateDistance(prev.latitude, prev.longitude, curr.latitude, curr.longitude);
+      const time = (curr.timestamp - prev.timestamp) / 1000 / 3600;
+      return time > 0 ? dist / time : 0;
+    })) : avgSpeed;
+    
+    const calories = Math.round(runStats.distance * 65);
+    const avgHeartRate = heartRateHistory.length > 0 
+      ? Math.round(heartRateHistory.reduce((sum, hr) => sum + hr, 0) / heartRateHistory.length)
+      : undefined;
+
     const newRun: RunHistory = {
       id: Date.now().toString(),
       date: new Date().toISOString(),
       territory,
       distance: runStats.distance,
       time: runStats.time,
-      avgSpeed: runStats.distance > 0 ? (runStats.distance / (runStats.time / 3600)) : 0,
+      avgSpeed,
+      avgPace,
+      maxSpeed,
+      calories,
+      avgHeartRate,
+      heartRateZones: calculateHeartRateZones(heartRateHistory),
       positions: positions,
     };
 
@@ -128,10 +187,21 @@ export default function Index() {
     return R * c;
   };
 
+  const simulateHeartRate = (speed: number, time: number): number => {
+    const baseHR = 70;
+    const maxHR = 190;
+    const speedFactor = Math.min(speed / 15, 1);
+    const timeFactor = Math.min(time / 1800, 0.3);
+    const targetHR = baseHR + (maxHR - baseHR) * speedFactor + 20 * timeFactor;
+    const variation = (Math.random() - 0.5) * 10;
+    return Math.round(Math.max(60, Math.min(maxHR, targetHR + variation)));
+  };
+
   const startTreadmillRun = () => {
     setRunMode('treadmill');
     setGpsError(null);
     setPositions([]);
+    setHeartRateHistory([]);
     setCurrentTerritory('Беговая дорожка');
     setRunStats({ distance: 0, speed: treadmillSpeed, time: 0, isRunning: true });
     startTimeRef.current = Date.now();
@@ -140,12 +210,19 @@ export default function Index() {
     timerRef.current = setInterval(() => {
       const elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
       const distanceTraveled = (treadmillSpeed * elapsed) / 3600;
+      const hr = simulateHeartRate(treadmillSpeed, elapsed);
+      
+      setHeartRate(hr);
+      setHeartRateHistory(prev => [...prev, hr]);
       
       setRunStats((prev) => ({ 
         ...prev, 
         time: elapsed,
         distance: distanceTraveled,
-        speed: treadmillSpeed
+        speed: treadmillSpeed,
+        heartRate: hr,
+        avgPace: treadmillSpeed > 0 ? 60 / treadmillSpeed : 0,
+        calories: Math.round(distanceTraveled * 65)
       }));
     }, 1000);
   };
@@ -160,6 +237,7 @@ export default function Index() {
 
     setGpsError(null);
     setPositions([]);
+    setHeartRateHistory([]);
     setCurrentTerritory(territory || 'Неизвестная территория');
     setRunStats({ distance: 0, speed: 0, time: 0, isRunning: true });
     startTimeRef.current = Date.now();
@@ -230,7 +308,16 @@ export default function Index() {
 
     timerRef.current = setInterval(() => {
       const elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
-      setRunStats((prev) => ({ ...prev, time: elapsed }));
+      const hr = simulateHeartRate(runStats.speed, elapsed);
+      setHeartRate(hr);
+      setHeartRateHistory(prev => [...prev, hr]);
+      setRunStats((prev) => ({ 
+        ...prev, 
+        time: elapsed,
+        heartRate: hr,
+        avgPace: prev.speed > 0 ? 60 / prev.speed : 0,
+        calories: Math.round(prev.distance * 65)
+      }));
     }, 1000);
   };
 
@@ -310,6 +397,9 @@ export default function Index() {
               speed={runStats.speed}
               time={runStats.time}
               isRunning={runStats.isRunning}
+              heartRate={runStats.heartRate}
+              avgPace={runStats.avgPace}
+              calories={runStats.calories}
               onSpeedChange={updateTreadmillSpeed}
               onStop={stopRun}
             />
