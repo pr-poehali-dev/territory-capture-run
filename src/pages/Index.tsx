@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -32,6 +32,13 @@ interface RunStats {
   isRunning: boolean;
 }
 
+interface GPSPosition {
+  latitude: number;
+  longitude: number;
+  accuracy: number;
+  timestamp: number;
+}
+
 const mockTerritories: Territory[] = [
   { id: 1, name: 'Парк Горького', area: 2.5, status: 'available' },
   { id: 2, name: 'Центральный район', area: 5.8, status: 'captured', owner: 'Ты' },
@@ -56,15 +63,129 @@ export default function Index() {
     time: 0,
     isRunning: false,
   });
+  const [gpsEnabled, setGpsEnabled] = useState<boolean>(false);
+  const [gpsError, setGpsError] = useState<string | null>(null);
+  const [positions, setPositions] = useState<GPSPosition[]>([]);
+  const watchIdRef = useRef<number | null>(null);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const startTimeRef = useRef<number>(0);
+
+  const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+    const R = 6371;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = 
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  };
 
   const startRun = () => {
-    setRunStats({ ...runStats, isRunning: true });
+    if (!navigator.geolocation) {
+      setGpsError('GPS не поддерживается вашим устройством');
+      return;
+    }
+
+    setGpsError(null);
+    setPositions([]);
+    setRunStats({ distance: 0, speed: 0, time: 0, isRunning: true });
+    startTimeRef.current = Date.now();
     setCurrentView('run');
+
+    watchIdRef.current = navigator.geolocation.watchPosition(
+      (position) => {
+        setGpsEnabled(true);
+        const newPos: GPSPosition = {
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+          accuracy: position.coords.accuracy,
+          timestamp: position.timestamp,
+        };
+
+        setPositions((prev) => {
+          const updated = [...prev, newPos];
+          
+          if (updated.length >= 2) {
+            const lastPos = updated[updated.length - 2];
+            const dist = calculateDistance(
+              lastPos.latitude,
+              lastPos.longitude,
+              newPos.latitude,
+              newPos.longitude
+            );
+
+            const totalDistance = updated.reduce((acc, pos, idx) => {
+              if (idx === 0) return 0;
+              const prevPos = updated[idx - 1];
+              return acc + calculateDistance(
+                prevPos.latitude,
+                prevPos.longitude,
+                pos.latitude,
+                pos.longitude
+              );
+            }, 0);
+
+            const timeDiff = (newPos.timestamp - lastPos.timestamp) / 1000 / 3600;
+            const speed = timeDiff > 0 ? dist / timeDiff : 0;
+
+            setRunStats((prev) => ({
+              ...prev,
+              distance: totalDistance,
+              speed: speed,
+            }));
+          }
+
+          return updated;
+        });
+      },
+      (error) => {
+        setGpsEnabled(false);
+        setGpsError(
+          error.code === 1
+            ? 'Доступ к GPS запрещен. Разрешите доступ к геолокации.'
+            : error.code === 2
+            ? 'GPS недоступен. Проверьте настройки устройства.'
+            : 'Тайм-аут GPS. Попробуйте снова.'
+        );
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0,
+      }
+    );
+
+    timerRef.current = setInterval(() => {
+      const elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
+      setRunStats((prev) => ({ ...prev, time: elapsed }));
+    }, 1000);
   };
 
   const stopRun = () => {
-    setRunStats({ ...runStats, isRunning: false });
+    if (watchIdRef.current !== null) {
+      navigator.geolocation.clearWatch(watchIdRef.current);
+      watchIdRef.current = null;
+    }
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    setRunStats((prev) => ({ ...prev, isRunning: false }));
+    setGpsEnabled(false);
   };
+
+  useEffect(() => {
+    return () => {
+      if (watchIdRef.current !== null) {
+        navigator.geolocation.clearWatch(watchIdRef.current);
+      }
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
+    };
+  }, []);
 
   const renderMapView = () => (
     <div className="space-y-4 animate-fade-in">
@@ -153,25 +274,43 @@ export default function Index() {
         </div>
       </div>
 
+      {gpsError && (
+        <Card className="p-4 bg-destructive/10 border-destructive">
+          <div className="flex items-center gap-2 text-destructive">
+            <Icon name="AlertCircle" size={20} />
+            <span className="text-sm font-medium">{gpsError}</span>
+          </div>
+        </Card>
+      )}
+
+      {gpsEnabled && (
+        <Card className="p-3 bg-green-50 border-green-200">
+          <div className="flex items-center gap-2 text-green-700">
+            <Icon name="Satellite" size={16} />
+            <span className="text-xs font-medium">GPS активен • Точность: {positions[positions.length - 1]?.accuracy.toFixed(0)} м</span>
+          </div>
+        </Card>
+      )}
+
       <div className="grid grid-cols-3 gap-4">
         <Card className="p-4 text-center">
           <Icon name="Route" size={24} className="mx-auto mb-2 text-secondary" />
           <div className="text-2xl font-bold text-secondary">
-            {runStats.isRunning ? '2.3' : '0.0'}
+            {runStats.distance.toFixed(2)}
           </div>
           <div className="text-xs text-muted-foreground">Расстояние (км)</div>
         </Card>
         <Card className="p-4 text-center">
           <Icon name="Gauge" size={24} className="mx-auto mb-2 text-primary" />
           <div className="text-2xl font-bold text-primary">
-            {runStats.isRunning ? '8.5' : '0.0'}
+            {runStats.speed.toFixed(1)}
           </div>
           <div className="text-xs text-muted-foreground">Скорость (км/ч)</div>
         </Card>
         <Card className="p-4 text-center">
           <Icon name="Clock" size={24} className="mx-auto mb-2 text-accent" />
           <div className="text-2xl font-bold text-accent">
-            {runStats.isRunning ? '16:42' : '00:00'}
+            {Math.floor(runStats.time / 60)}:{(runStats.time % 60).toString().padStart(2, '0')}
           </div>
           <div className="text-xs text-muted-foreground">Время</div>
         </Card>
@@ -181,12 +320,12 @@ export default function Index() {
         <div className="flex items-center justify-between mb-2">
           <span className="text-sm font-medium">Прогресс захвата</span>
           <span className="text-sm text-muted-foreground">
-            {runStats.isRunning ? '65%' : '0%'}
+            {Math.min(Math.round((runStats.distance / 3) * 100), 100)}%
           </span>
         </div>
-        <Progress value={runStats.isRunning ? 65 : 0} className="h-2" />
+        <Progress value={runStats.distance > 0 ? Math.min((runStats.distance / 3) * 100, 100) : 0} className="h-2" />
         <p className="text-xs text-muted-foreground mt-2">
-          Пробеги границы территории со скоростью не менее 7 км/ч
+          Цель: 3 км для захвата территории (скорость от 7 км/ч)
         </p>
       </Card>
 
