@@ -101,9 +101,13 @@ export default function Index() {
   const [treadmillSpeed, setTreadmillSpeed] = useState<number>(8.0);
   const [heartRate, setHeartRate] = useState<number>(0);
   const [heartRateHistory, setHeartRateHistory] = useState<number[]>([]);
+  const [currentZone, setCurrentZone] = useState<number>(0);
+  const [lastAnnouncement, setLastAnnouncement] = useState<string>('');
   const watchIdRef = useRef<number | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const startTimeRef = useRef<number>(0);
+  const lastZoneRef = useRef<number>(0);
+  const speechEnabledRef = useRef<boolean>(true);
 
   useEffect(() => {
     const savedHistory = localStorage.getItem('runHistory');
@@ -175,6 +179,60 @@ export default function Index() {
     localStorage.setItem('runHistory', JSON.stringify(updatedHistory));
   };
 
+  const speak = (text: string) => {
+    if (!speechEnabledRef.current || !window.speechSynthesis) return;
+    
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = 'ru-RU';
+    utterance.rate = 0.9;
+    utterance.pitch = 1.0;
+    utterance.volume = 1.0;
+    window.speechSynthesis.speak(utterance);
+    setLastAnnouncement(text);
+  };
+
+  const getZoneFromHeartRate = (hr: number): number => {
+    if (hr < 114) return 1;
+    if (hr < 133) return 2;
+    if (hr < 152) return 3;
+    if (hr < 171) return 4;
+    return 5;
+  };
+
+  const getZoneName = (zone: number): string => {
+    const names = [
+      'разминка',
+      'лёгкая зона',
+      'аэробная зона', 
+      'анаэробная зона',
+      'максимальная зона'
+    ];
+    return names[zone - 1] || 'неизвестная зона';
+  };
+
+  const checkHeartRateZoneChange = (hr: number) => {
+    const newZone = getZoneFromHeartRate(hr);
+    setCurrentZone(newZone);
+    
+    if (lastZoneRef.current !== 0 && newZone !== lastZoneRef.current) {
+      const zoneName = getZoneName(newZone);
+      speak(`Переход в ${zoneName}. Пульс ${hr}.`);
+    }
+    lastZoneRef.current = newZone;
+  };
+
+  const checkDistanceMilestones = (distance: number) => {
+    const km = Math.floor(distance);
+    if (km > 0 && distance >= km && distance < km + 0.01) {
+      speak(`Пройден ${km} километр!`);
+    }
+    
+    if (distance >= 3 && distance < 3.01) {
+      speak('Цель достигнута! Три километра пройдено!');
+    }
+  };
+
   const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
     const R = 6371;
     const dLat = (lat2 - lat1) * Math.PI / 180;
@@ -202,10 +260,13 @@ export default function Index() {
     setGpsError(null);
     setPositions([]);
     setHeartRateHistory([]);
+    setCurrentZone(0);
+    lastZoneRef.current = 0;
     setCurrentTerritory('Беговая дорожка');
     setRunStats({ distance: 0, speed: treadmillSpeed, time: 0, isRunning: true });
     startTimeRef.current = Date.now();
     setCurrentView('treadmill');
+    speak('Тренировка на беговой дорожке начата. Удачи!');
 
     timerRef.current = setInterval(() => {
       const elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
@@ -214,6 +275,8 @@ export default function Index() {
       
       setHeartRate(hr);
       setHeartRateHistory(prev => [...prev, hr]);
+      checkHeartRateZoneChange(hr);
+      checkDistanceMilestones(distanceTraveled);
       
       setRunStats((prev) => ({ 
         ...prev, 
@@ -238,10 +301,13 @@ export default function Index() {
     setGpsError(null);
     setPositions([]);
     setHeartRateHistory([]);
+    setCurrentZone(0);
+    lastZoneRef.current = 0;
     setCurrentTerritory(territory || 'Неизвестная территория');
     setRunStats({ distance: 0, speed: 0, time: 0, isRunning: true });
     startTimeRef.current = Date.now();
     setCurrentView('run');
+    speak('Пробежка начата. Поехали!');
 
     watchIdRef.current = navigator.geolocation.watchPosition(
       (position) => {
@@ -284,6 +350,8 @@ export default function Index() {
               distance: totalDistance,
               speed: speed,
             }));
+            
+            checkDistanceMilestones(totalDistance);
           }
 
           return updated;
@@ -311,6 +379,7 @@ export default function Index() {
       const hr = simulateHeartRate(runStats.speed, elapsed);
       setHeartRate(hr);
       setHeartRateHistory(prev => [...prev, hr]);
+      checkHeartRateZoneChange(hr);
       setRunStats((prev) => ({ 
         ...prev, 
         time: elapsed,
@@ -332,11 +401,16 @@ export default function Index() {
     }
     
     if (runStats.distance > 0) {
+      const finalDistance = runStats.distance.toFixed(2);
+      const finalTime = Math.floor(runStats.time / 60);
+      speak(`Пробежка завершена! Дистанция ${finalDistance} километров. Время ${finalTime} минут. Отличная работа!`);
       saveRunToHistory(currentTerritory);
     }
     
     setRunStats((prev) => ({ ...prev, isRunning: false }));
     setGpsEnabled(false);
+    setCurrentZone(0);
+    lastZoneRef.current = 0;
   };
 
   const updateTreadmillSpeed = (newSpeed: number) => {
