@@ -9,6 +9,7 @@ import MapViewComponent from '@/components/views/MapViewComponent';
 import RunViewComponent from '@/components/views/RunViewComponent';
 import ProfileViewComponent from '@/components/views/ProfileViewComponent';
 import LeaderboardViewComponent from '@/components/views/LeaderboardViewComponent';
+import AnimatedLogo from '@/components/AnimatedLogo';
 import { API_ENDPOINTS } from '@/config/api';
 
 type View = 'map' | 'run' | 'profile' | 'leaderboard' | 'treadmill';
@@ -499,7 +500,7 @@ export default function Index() {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-bold flex items-center gap-2">
-                <Icon name="Zap" size={28} />
+                <AnimatedLogo />
                 RunTerritory
               </h1>
               <p className="text-sm opacity-90">Захватывай территории бегом!</p>
