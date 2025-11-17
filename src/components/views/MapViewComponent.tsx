@@ -44,7 +44,7 @@ export default function MapViewComponent({
             </div>
             <div>
               <h3 className="font-bold">Беговая дорожка</h3>
-              <p className="text-sm text-muted-foreground">Тренировка в зале</p>
+              <p className="text-sm text-muted-foreground">Тренировка в зале или дома</p>
             </div>
           </div>
           <Button onClick={onStartTreadmill} className="bg-primary hover:bg-primary/90">
@@ -52,13 +52,21 @@ export default function MapViewComponent({
             Начать
           </Button>
         </div>
+        <div className="mt-3 pt-3 border-t border-primary/10">
+          <p className="text-xs text-muted-foreground">
+            💡 Любая активность засчитывается — ходьба, бег или велосипед
+          </p>
+        </div>
       </Card>
 
       <div>
-        <h2 className="text-xl font-bold mb-3 flex items-center gap-2">
+        <h2 className="text-xl font-bold mb-2 flex items-center gap-2">
           <Icon name="Flag" size={24} className="text-primary" />
           Доступные территории
         </h2>
+        <p className="text-sm text-muted-foreground mb-3">
+          Пройдите 3 км любым способом для захвата
+        </p>
         <div className="space-y-2">
           {territories.map((territory) => (
             <Card

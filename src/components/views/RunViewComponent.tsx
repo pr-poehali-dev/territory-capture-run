@@ -108,7 +108,7 @@ export default function RunViewComponent({
         </div>
         <Progress value={runStats.distance > 0 ? Math.min((runStats.distance / 3) * 100, 100) : 0} className="h-2" />
         <p className="text-xs text-muted-foreground mt-2">
-          Цель: 3 км для захвата территории (скорость от 7 км/ч)
+          Цель: 3 км для захвата территории (любая активность засчитывается)
         </p>
       </Card>
 

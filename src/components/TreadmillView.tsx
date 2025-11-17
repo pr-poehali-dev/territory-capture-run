@@ -166,7 +166,7 @@ export default function TreadmillView({
               Темп бега
             </span>
             <span className="font-semibold">
-              {speed < 7 ? 'Легкий' : speed < 10 ? 'Средний' : 'Интенсивный'}
+              {speed < 5 ? 'Ходьба' : speed < 7 ? 'Легкий бег' : speed < 10 ? 'Средний' : 'Интенсивный'}
             </span>
           </div>
         </div>
@@ -177,7 +177,7 @@ export default function TreadmillView({
           <Icon name="Info" size={20} className="text-accent mt-0.5" />
           <div className="text-sm text-muted-foreground">
             <p className="font-medium text-foreground mb-1">Режим беговой дорожки</p>
-            <p>Используйте кнопки +/- для изменения скорости во время бега. Расстояние рассчитывается автоматически.</p>
+            <p>Используйте кнопки +/- для изменения скорости. Засчитывается любая активность — от ходьбы до бега.</p>
           </div>
         </div>
       </div>
