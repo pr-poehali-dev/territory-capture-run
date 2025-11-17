@@ -1,12 +1,15 @@
 import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import Icon from '@/components/ui/icon';
+import { useAuth } from '@/contexts/AuthContext';
+import AuthModal from '@/components/AuthModal';
 import RunDetailModal from '@/components/RunDetailModal';
 import TreadmillView from '@/components/TreadmillView';
 import MapViewComponent from '@/components/views/MapViewComponent';
 import RunViewComponent from '@/components/views/RunViewComponent';
 import ProfileViewComponent from '@/components/views/ProfileViewComponent';
 import LeaderboardViewComponent from '@/components/views/LeaderboardViewComponent';
+import { API_ENDPOINTS } from '@/config/api';
 
 type View = 'map' | 'run' | 'profile' | 'leaderboard' | 'treadmill';
 type RunMode = 'outdoor' | 'treadmill';
@@ -83,6 +86,8 @@ const mockLeaderboard: Runner[] = [
 ];
 
 export default function Index() {
+  const { user, token, isAuthenticated, logout } = useAuth();
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [currentView, setCurrentView] = useState<View>('map');
   const [runStats, setRunStats] = useState<RunStats>({
     distance: 0,
@@ -110,15 +115,39 @@ export default function Index() {
   const speechEnabledRef = useRef<boolean>(true);
 
   useEffect(() => {
-    const savedHistory = localStorage.getItem('runHistory');
-    if (savedHistory) {
-      try {
-        setRunHistory(JSON.parse(savedHistory));
-      } catch (e) {
-        console.error('Failed to load run history', e);
+    if (isAuthenticated && token) {
+      loadRunsFromServer();
+    } else {
+      const savedHistory = localStorage.getItem('runHistory');
+      if (savedHistory) {
+        try {
+          setRunHistory(JSON.parse(savedHistory));
+        } catch (e) {
+          console.error('Failed to load run history', e);
+        }
       }
     }
-  }, []);
+  }, [isAuthenticated, token]);
+
+  const loadRunsFromServer = async () => {
+    if (!token) return;
+    
+    try {
+      const response = await fetch(API_ENDPOINTS.runs, {
+        method: 'GET',
+        headers: {
+          'X-Auth-Token': token
+        }
+      });
+      
+      const data = await response.json();
+      if (data.success && data.runs) {
+        setRunHistory(data.runs);
+      }
+    } catch (error) {
+      console.error('Failed to load runs from server:', error);
+    }
+  };
 
   const calculateHeartRateZones = (hrHistory: number[]) => {
     if (hrHistory.length === 0) return undefined;
@@ -142,7 +171,7 @@ export default function Index() {
     };
   };
 
-  const saveRunToHistory = (territory: string) => {
+  const saveRunToHistory = async (territory: string) => {
     const avgSpeed = runStats.distance > 0 ? (runStats.distance / (runStats.time / 3600)) : 0;
     const avgPace = avgSpeed > 0 ? 60 / avgSpeed : 0;
     const maxSpeed = positions.length > 1 ? Math.max(...positions.map((_, idx) => {
@@ -176,7 +205,34 @@ export default function Index() {
 
     const updatedHistory = [newRun, ...runHistory].slice(0, 50);
     setRunHistory(updatedHistory);
-    localStorage.setItem('runHistory', JSON.stringify(updatedHistory));
+    
+    if (isAuthenticated && token) {
+      try {
+        await fetch(API_ENDPOINTS.runs, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Auth-Token': token
+          },
+          body: JSON.stringify({
+            territory: newRun.territory,
+            distance: newRun.distance,
+            time: newRun.time,
+            avgSpeed: newRun.avgSpeed,
+            avgPace: newRun.avgPace,
+            maxSpeed: newRun.maxSpeed,
+            calories: newRun.calories,
+            avgHeartRate: newRun.avgHeartRate,
+            heartRateZones: newRun.heartRateZones,
+            positions: newRun.positions
+          })
+        });
+      } catch (error) {
+        console.error('Failed to save run to server:', error);
+      }
+    } else {
+      localStorage.setItem('runHistory', JSON.stringify(updatedHistory));
+    }
   };
 
   const speak = (text: string) => {
@@ -440,11 +496,38 @@ export default function Index() {
     <div className="min-h-screen bg-background">
       <div className="max-w-md mx-auto pb-20">
         <header className="sticky top-0 z-10 bg-gradient-to-r from-primary via-secondary to-accent p-4 text-white shadow-lg">
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <Icon name="Zap" size={28} />
-            RunTerritory
-          </h1>
-          <p className="text-sm opacity-90">Захватывай территории бегом!</p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-bold flex items-center gap-2">
+                <Icon name="Zap" size={28} />
+                RunTerritory
+              </h1>
+              <p className="text-sm opacity-90">Захватывай территории бегом!</p>
+            </div>
+            {isAuthenticated ? (
+              <div className="flex items-center gap-2">
+                <span className="text-sm">{user?.name || user?.email || user?.phone}</span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={logout}
+                  className="bg-white/20 border-white/30 text-white hover:bg-white/30"
+                >
+                  <Icon name="LogOut" size={16} />
+                </Button>
+              </div>
+            ) : (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsAuthModalOpen(true)}
+                className="bg-white/20 border-white/30 text-white hover:bg-white/30"
+              >
+                <Icon name="LogIn" size={16} className="mr-1" />
+                Вход
+              </Button>
+            )}
+          </div>
         </header>
 
         <main className="p-4">
@@ -538,6 +621,11 @@ export default function Index() {
           run={selectedRun} 
           open={isModalOpen} 
           onClose={() => setIsModalOpen(false)} 
+        />
+        
+        <AuthModal 
+          isOpen={isAuthModalOpen}
+          onClose={() => setIsAuthModalOpen(false)}
         />
       </div>
     </div>

@@ -1,7 +1,9 @@
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import Icon from '@/components/ui/icon';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface GPSPosition {
   latitude: number;
@@ -26,24 +28,46 @@ interface ProfileViewComponentProps {
 }
 
 export default function ProfileViewComponent({ runHistory, onRunClick }: ProfileViewComponentProps) {
+  const { user, isAuthenticated } = useAuth();
+  
+  const getUserInitials = () => {
+    if (user?.name) {
+      const names = user.name.split(' ');
+      return names.map(n => n[0]).join('').toUpperCase().slice(0, 2);
+    }
+    if (user?.email) return user.email[0].toUpperCase();
+    if (user?.phone) return user.phone.slice(-2);
+    return 'U';
+  };
   return (
     <div className="space-y-6 animate-fade-in">
       <Card className="p-6">
         <div className="flex items-center gap-4 mb-6">
           <Avatar className="w-20 h-20 bg-gradient-to-br from-primary to-accent">
-            <AvatarFallback className="text-2xl font-bold text-white">ТЫ</AvatarFallback>
+            <AvatarFallback className="text-2xl font-bold text-white">
+              {isAuthenticated ? getUserInitials() : 'ГС'}
+            </AvatarFallback>
           </Avatar>
           <div>
-            <h2 className="text-2xl font-bold">Твой профиль</h2>
+            <h2 className="text-2xl font-bold">
+              {isAuthenticated ? (user?.name || 'Твой профиль') : 'Гость'}
+            </h2>
+            {isAuthenticated && (
+              <p className="text-sm text-muted-foreground">
+                {user?.email || user?.phone}
+              </p>
+            )}
             <div className="flex items-center gap-2 mt-1">
               <Badge className="bg-primary">
                 <Icon name="Trophy" size={12} className="mr-1" />
-                Ранг 3
+                {runHistory.length} пробежек
               </Badge>
-              <Badge variant="secondary">
-                <Icon name="Target" size={12} className="mr-1" />
-                Активный
-              </Badge>
+              {isAuthenticated && (
+                <Badge variant="secondary">
+                  <Icon name="Target" size={12} className="mr-1" />
+                  Активный
+                </Badge>
+              )}
             </div>
           </div>
         </div>

@@ -1,0 +1,38 @@
+{
+  "tests": [
+    {
+      "name": "Save run data",
+      "method": "POST",
+      "headers": {
+        "X-Auth-Token": "test_token_1"
+      },
+      "body": {
+        "territory": "Test Territory",
+        "distance": 5.0,
+        "time": 1800,
+        "avgSpeed": 10.0,
+        "avgPace": 6.0,
+        "calories": 325
+      },
+      "expectedStatus": 200,
+      "expectedBody": {
+        "success": true,
+        "runId": "number",
+        "date": "string"
+      },
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "Get user runs",
+      "method": "GET",
+      "headers": {
+        "X-Auth-Token": "test_token_1"
+      },
+      "expectedStatus": 200,
+      "expectedBody": {
+        "success": true
+      },
+      "bodyMatcher": "partial"
+    }
+  ]
+}
