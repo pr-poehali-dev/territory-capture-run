@@ -60,7 +60,7 @@ export default function ProfileViewComponent({ runHistory, onRunClick }: Profile
             <div className="flex items-center gap-2 mt-1">
               <Badge className="bg-primary">
                 <Icon name="Trophy" size={12} className="mr-1" />
-                {runHistory.length} пробежек
+                {runHistory.length} активностей
               </Badge>
               {isAuthenticated && (
                 <Badge variant="secondary">
@@ -81,8 +81,61 @@ export default function ProfileViewComponent({ runHistory, onRunClick }: Profile
           </div>
           <div className="text-center p-4 bg-muted rounded-lg">
             <div className="text-3xl font-bold text-secondary">{runHistory.length}</div>
-            <div className="text-sm text-muted-foreground">пробежек</div>
+            <div className="text-sm text-muted-foreground">активностей</div>
           </div>
+        </div>
+      </Card>
+
+      <Card className="p-6">
+        <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+          <Icon name="BarChart" size={20} className="text-accent" />
+          Статистика по типам активности
+        </h3>
+        <div className="space-y-3">
+          {(() => {
+            const stats = {
+              walking: { distance: 0, count: 0, icon: 'PersonStanding', label: 'Ходьба', color: 'text-blue-600', bg: 'bg-blue-50' },
+              light: { distance: 0, count: 0, icon: 'Footprints', label: 'Лёгкий бег', color: 'text-green-600', bg: 'bg-green-50' },
+              medium: { distance: 0, count: 0, icon: 'Gauge', label: 'Средний темп', color: 'text-yellow-600', bg: 'bg-yellow-50' },
+              intense: { distance: 0, count: 0, icon: 'Zap', label: 'Интенсивный', color: 'text-red-600', bg: 'bg-red-50' },
+            };
+
+            runHistory.forEach(run => {
+              const speed = run.avgSpeed;
+              if (speed < 6) {
+                stats.walking.distance += run.distance;
+                stats.walking.count++;
+              } else if (speed < 7) {
+                stats.light.distance += run.distance;
+                stats.light.count++;
+              } else if (speed < 10) {
+                stats.medium.distance += run.distance;
+                stats.medium.count++;
+              } else {
+                stats.intense.distance += run.distance;
+                stats.intense.count++;
+              }
+            });
+
+            return Object.entries(stats).map(([key, stat]) => (
+              stat.count > 0 && (
+                <div key={key} className={`p-3 rounded-lg ${stat.bg} flex items-center justify-between`}>
+                  <div className="flex items-center gap-3">
+                    <div className={`p-2 rounded-full bg-white`}>
+                      <Icon name={stat.icon as any} size={20} className={stat.color} />
+                    </div>
+                    <div>
+                      <div className="font-semibold text-sm">{stat.label}</div>
+                      <div className="text-xs text-muted-foreground">{stat.count} раз</div>
+                    </div>
+                  </div>
+                  <div className={`text-lg font-bold ${stat.color}`}>
+                    {stat.distance.toFixed(1)} км
+                  </div>
+                </div>
+              )
+            ));
+          })()}
         </div>
       </Card>
 
