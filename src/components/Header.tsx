@@ -16,7 +16,7 @@ export default function Header({ isAuthenticated, userDisplay, onLoginClick, onL
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <AnimatedLogo />
-            RunTerritory
+            RunQuest
           </h1>
           <p className="text-sm opacity-90">Захватывай территории бегом!</p>
         </div>
